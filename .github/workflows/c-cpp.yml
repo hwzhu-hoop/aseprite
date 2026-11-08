@@ -1,0 +1,44 @@
+name: Build Aseprite (macOS ARM64)
+on:
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Aseprite (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Download prebuilt Skia for macOS ARM64
+        run: |
+          mkdir -p ${{ runner.temp }}/skia
+          # 从 aseprite/skia 的 releases 页面查找最新的 macOS ARM64 版本链接，并替换下方 URL
+          curl -L -o ${{ runner.temp }}/skia.zip "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/Skia-macOS-Release-arm64.zip"
+          unzip -q ${{ runner.temp }}/skia.zip -d ${{ runner.temp }}/skia
+
+      - name: Configure (CMake)
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DLAF_BACKEND=skia \
+            -DSKIA_DIR=${{ runner.temp }}/skia \
+            -DSKIA_LIBRARY_DIR=${{ runner.temp }}/skia/out/Release-arm64 \
+            -DSKIA_LIBRARY=${{ runner.temp }}/skia/out/Release-arm64/libskia.a \
+            -G Ninja
+
+      - name: Build
+        run: ninja aseprite
+        working-directory: build
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp -R build/bin/Aseprite.app dist/
+          # 根据 EULA，产物仅保留在你的私有 Release 中
+          # 此处省略了上传步骤，你可以根据需要手动下载或配置私有 Release 上传
